@@ -55,7 +55,7 @@ public class ItemFrameEntityMixin {
 				waxed = true;
 				itemStack.decrement(1);
 				t.playSound(SoundEvents.ITEM_HONEYCOMB_WAX_ON, 1.0f, 1.0f);
-				t.getWorld().syncWorldEvent((Entity) null, WorldEvents.BLOCK_WAXED, t.getBlockPos(), 0);
+				t.getEntityWorld().syncWorldEvent((Entity) null, WorldEvents.BLOCK_WAXED, t.getBlockPos(), 0);
 				cir.setReturnValue(ActionResult.SUCCESS);
 				return;
 			}
