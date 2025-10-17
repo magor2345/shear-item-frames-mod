@@ -1,23 +1,23 @@
 package shear_item_frames.mixin;
 
+import net.minecraft.storage.ReadView;
+import net.minecraft.storage.WriteView;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import net.minecraft.advancement.criterion.Criteria;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.damage.DamageSource;
 import net.minecraft.entity.decoration.ItemFrameEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.ItemStack;
 import net.minecraft.item.Items;
-import net.minecraft.server.network.ServerPlayerEntity;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.sound.SoundEvents;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.Hand;
-import net.minecraft.world.World;
 import net.minecraft.world.WorldEvents;
 import net.minecraft.world.event.GameEvent;
 
@@ -25,10 +25,20 @@ import net.minecraft.world.event.GameEvent;
 public class ItemFrameEntityMixin {
 	private boolean waxed = false;
 
+	@Inject(method = "writeCustomData", at = @At("HEAD"))
+	private void writeNbtMixin(WriteView view, CallbackInfo ci) {
+		view.putBoolean("Waxed", this.waxed);
+	}
+
+	@Inject(method = "readCustomData", at = @At("HEAD"))
+	private void readNbtMixin(ReadView view, CallbackInfo ci) {
+		waxed = view.getBoolean("Waxed", false);
+	}
+
 	// Inject at head
 	@Inject(method = "damage", at = @At(value = "INVOKE", target = "Lnet/minecraft/entity/decoration/ItemFrameEntity;dropHeldStack(Lnet/minecraft/server/world/ServerWorld;Lnet/minecraft/entity/Entity;Z)V"), cancellable = true)
 	private void onDamage(ServerWorld world, DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
-		ItemFrameEntity t = ((ItemFrameEntity) (Object) this);
+		ItemFrameEntity t = (ItemFrameEntity) (Object) this;
 
 		if (t.isInvisible()) {
 			t.setInvisible(false);
@@ -43,7 +53,7 @@ public class ItemFrameEntityMixin {
 	private void onInteract(PlayerEntity player, Hand hand, CallbackInfoReturnable<ActionResult> cir) {
 		ItemStack itemStack = player.getStackInHand(hand);
 		ItemFrameEntity t = ((ItemFrameEntity) (Object) this);
-		boolean itemFrameEmpty = ((ItemFrameEntity) (Object) this).getHeldItemStack().isEmpty();
+		boolean itemFrameEmpty = t.getHeldItemStack().isEmpty();
 
 		if (!itemFrameEmpty) {
 			if (waxed) {
@@ -66,7 +76,6 @@ public class ItemFrameEntityMixin {
 				t.emitGameEvent(GameEvent.SHEAR, player);
 				itemStack.damage(1, player, hand);
 				cir.setReturnValue(ActionResult.SUCCESS);
-				return;
 			}
 
 		}
