@@ -1,83 +1,110 @@
 package shear_item_frames.mixin;
 
-import net.minecraft.storage.ReadView;
-import net.minecraft.storage.WriteView;
+import net.minecraft.core.Direction;
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.network.syncher.EntityDataAccessor;
+import net.minecraft.network.syncher.EntityDataSerializers;
+import net.minecraft.network.syncher.SynchedEntityData;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.phys.AABB;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.damage.DamageSource;
-import net.minecraft.entity.decoration.ItemFrameEntity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.sound.SoundEvents;
-import net.minecraft.util.ActionResult;
-import net.minecraft.util.Hand;
-import net.minecraft.world.WorldEvents;
-import net.minecraft.world.event.GameEvent;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.decoration.ItemFrame;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.level.gameevent.GameEvent;
+import net.minecraft.world.level.storage.ValueInput;
+import net.minecraft.world.level.storage.ValueOutput;
 
-@Mixin(ItemFrameEntity.class)
+@Mixin(ItemFrame.class)
 public class ItemFrameEntityMixin {
-	private boolean waxed = false;
+	private static final EntityDataAccessor<Boolean> DATA_WAXED =
+			SynchedEntityData.defineId(ItemFrame.class, EntityDataSerializers.BOOLEAN);
 
-	@Inject(method = "writeCustomData", at = @At("HEAD"))
-	private void writeNbtMixin(WriteView view, CallbackInfo ci) {
-		view.putBoolean("Waxed", this.waxed);
+	@Inject(method = "defineSynchedData", at = @At("RETURN"))
+	private void defineWaxed(SynchedEntityData.Builder builder, CallbackInfo ci) {
+		builder.define(DATA_WAXED, false);
 	}
 
-	@Inject(method = "readCustomData", at = @At("HEAD"))
-	private void readNbtMixin(ReadView view, CallbackInfo ci) {
-		waxed = view.getBoolean("Waxed", false);
+	private boolean isWaxed() {
+		return ((ItemFrame)(Object)this).getEntityData().get(DATA_WAXED);
 	}
 
-	// Inject at head
-	@Inject(method = "damage", at = @At(value = "INVOKE", target = "Lnet/minecraft/entity/decoration/ItemFrameEntity;dropHeldStack(Lnet/minecraft/server/world/ServerWorld;Lnet/minecraft/entity/Entity;Z)V"), cancellable = true)
-	private void onDamage(ServerWorld world, DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
-		ItemFrameEntity t = (ItemFrameEntity) (Object) this;
+	private void setWaxed(boolean value) {
+		((ItemFrame)(Object)this).getEntityData().set(DATA_WAXED, value);
+	}
 
-		if (t.isInvisible()) {
-			t.setInvisible(false);
-		}
+	@Inject(method = "addAdditionalSaveData", at = @At("RETURN"))
+	private void writeNbtMixin(ValueOutput view, CallbackInfo ci) {
+		view.putBoolean("Waxed", this.isWaxed());
+	}
 
-		if (waxed) {
-			waxed = false;
-		}
+	@Inject(method = "readAdditionalSaveData", at = @At("HEAD"))
+	private void readNbtMixin(ValueInput view, CallbackInfo ci) {
+		this.setWaxed(view.getBooleanOr("Waxed", false));
+	}
+
+	@Inject(method = "hurtServer", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/decoration/ItemFrame;dropItem(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/entity/Entity;Z)V"), cancellable = true)
+	private void hurtServer(ServerLevel world, DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
+		ItemFrame self = (ItemFrame)(Object)this;
+		this.setWaxed(false);
+		self.setInvisible(false);
 	}
 
 	@Inject(method = "interact", at = @At("HEAD"), cancellable = true)
-	private void onInteract(PlayerEntity player, Hand hand, CallbackInfoReturnable<ActionResult> cir) {
-		ItemStack itemStack = player.getStackInHand(hand);
-		ItemFrameEntity t = ((ItemFrameEntity) (Object) this);
-		boolean itemFrameEmpty = t.getHeldItemStack().isEmpty();
+	private void onInteract(Player player, InteractionHand hand, CallbackInfoReturnable<InteractionResult> cir) {
+		ItemStack itemStack = player.getItemInHand(hand);
+		ItemFrame t = ((ItemFrame) (Object) this);
+		boolean itemFrameEmpty = t.getItem().isEmpty();
 
 		if (!itemFrameEmpty) {
-			if (waxed) {
-				cir.setReturnValue(ActionResult.SUCCESS);
-				return;
-			}
-
-			if (!waxed && itemStack.isOf(Items.HONEYCOMB)) {
-				waxed = true;
-				itemStack.decrement(1);
-				t.playSound(SoundEvents.ITEM_HONEYCOMB_WAX_ON, 1.0f, 1.0f);
-				t.getEntityWorld().syncWorldEvent((Entity) null, WorldEvents.BLOCK_WAXED, t.getBlockPos(), 0);
-				cir.setReturnValue(ActionResult.SUCCESS);
-				return;
-			}
-
-			if (!t.isInvisible() && itemStack.isOf(Items.SHEARS)) {
+			if (itemStack.is(Items.SHEARS) && !t.isInvisible()) {
 				t.setInvisible(true);
-				t.playSound(SoundEvents.ITEM_SHEARS_SNIP, 1.0f, 1.0f);
-				t.emitGameEvent(GameEvent.SHEAR, player);
-				itemStack.damage(1, player, hand);
-				cir.setReturnValue(ActionResult.SUCCESS);
+				t.playSound(SoundEvents.SHEARS_SNIP, 1.0f, 1.0f);
+				t.gameEvent(GameEvent.SHEAR, player);
+				itemStack.hurtAndBreak(1, player, hand);
+				cir.setReturnValue(InteractionResult.SUCCESS);
+				return;
 			}
 
+			if (this.isWaxed()) {
+				cir.setReturnValue(InteractionResult.PASS);
+				return;
+			}
+
+			if (itemStack.is(Items.HONEYCOMB)) {
+				this.setWaxed(true);
+				itemStack.shrink(1);
+				t.playSound(SoundEvents.HONEYCOMB_WAX_ON, 1.0f, 1.0f);
+				RandomSource random = t.level().random; // or new Random()
+
+				AABB box = t.getBoundingBox();
+
+				Direction facing = t.getDirection();
+				double offset = 0.09375;
+
+				for (int i = 0; i < 10; i++) {
+					double x = box.minX + random.nextDouble() * (box.maxX - box.minX) + facing.getStepX() * offset;
+					double y = box.minY + random.nextDouble() * (box.maxY - box.minY) + facing.getStepY() * offset;
+					double z = box.minZ + random.nextDouble() * (box.maxZ - box.minZ) + facing.getStepZ() * offset;
+
+					t.level().addParticle(ParticleTypes.WAX_ON, x, y, z, 0, 0.02, 0);
+				}
+
+				t.level().gameEvent((Entity) null, GameEvent.BLOCK_CHANGE, t.getPos());
+				cir.setReturnValue(InteractionResult.SUCCESS);
+			}
 		}
 	}
 }
