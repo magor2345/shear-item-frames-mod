@@ -1,21 +1,19 @@
 package shear_item_frames.mixin;
 
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
-import net.minecraft.network.syncher.EntityDataAccessor;
-import net.minecraft.network.syncher.EntityDataSerializers;
-import net.minecraft.network.syncher.SynchedEntityData;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.util.RandomSource;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.decoration.ItemFrame;
 import net.minecraft.world.entity.player.Player;
@@ -67,7 +65,31 @@ public class ItemFrameEntityMixin {
 			}
 
 			if (this.waxed) {
-				cir.setReturnValue(InteractionResult.PASS);
+				ServerLevel level = (ServerLevel) t.level();
+
+				BlockPos behind = t.blockPosition()
+						.relative(t.getDirection().getOpposite());
+
+				BlockState state = level.getBlockState(behind);
+
+				Vec3 eyePos = player.getEyePosition();
+				Vec3 lookVec = player.getLookAngle().scale(5.0);
+
+				BlockHitResult blockHit = level.clip(
+						new ClipContext(
+								eyePos,
+								eyePos.add(lookVec),
+								ClipContext.Block.COLLIDER,
+								ClipContext.Fluid.NONE,
+								player
+						)
+				);
+
+				if (blockHit.getBlockPos().equals(behind)) {
+					player.openMenu(state.getMenuProvider(level, behind));
+				}
+
+				cir.setReturnValue(InteractionResult.CONSUME);
 				return;
 			}
 
@@ -75,7 +97,6 @@ public class ItemFrameEntityMixin {
 				this.waxed = true;
 				itemStack.shrink(1);
 				t.playSound(SoundEvents.HONEYCOMB_WAX_ON, 1.0f, 1.0f);
-				RandomSource random = t.level().random; // or new Random()
 
 				Direction facing = t.getDirection();
 				double offset = 0.09375;
@@ -97,7 +118,7 @@ public class ItemFrameEntityMixin {
                         0.02
                 ));
 
-				t.level().gameEvent((Entity) null, GameEvent.BLOCK_CHANGE, t.getPos());
+				t.level().gameEvent(null, GameEvent.BLOCK_CHANGE, t.getPos());
 				cir.setReturnValue(InteractionResult.SUCCESS);
 			}
 		}
