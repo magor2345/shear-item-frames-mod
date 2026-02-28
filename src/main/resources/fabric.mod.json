@@ -3,9 +3,9 @@
   "id": "shear_item_frames",
   "version": "${version}",
   "name": "Shear Item Frames",
-  "description": "This mod allows you to shear (and wax) item frames!\nShearing an item frame makes it invisible, only showing the item which allows for some cool decoration.\nWaxing the item frame stops players from rotating it. Good in places where you don't want to rotate it accidentally.",
-  "authors": ["sydit"],
-  "license": "MIT",
+  "description": "This mod allows you to shear (and wax) item frames!\nShearing an item frame makes it invisible, only showing the item which allows for some cool decoration.\nWaxing the item frame stops players from rotating it and allows to open containers through them.",
+  "authors": ["sydist","magor2345"],
+  "license": "LGPL 3.0",
   "icon": "assets/shear_item_frames/icon.png",
   "environment": "*",
   "entrypoints": {
