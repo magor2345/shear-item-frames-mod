@@ -9,6 +9,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -27,9 +28,11 @@ import net.minecraft.world.level.gameevent.GameEvent;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 
+
 @Mixin(ItemFrame.class)
 public class ItemFrameEntityMixin {
-	public boolean waxed = false;
+	@Unique
+    public boolean waxed = false;
 
 	@Inject(method = "addAdditionalSaveData", at = @At("RETURN"))
 	private void writeNbtMixin(ValueOutput view, CallbackInfo ci) {
@@ -41,7 +44,7 @@ public class ItemFrameEntityMixin {
 		this.waxed = view.getBooleanOr("Waxed", false);
 	}
 
-	@Inject(method = "hurtServer", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/decoration/ItemFrame;dropItem(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/entity/Entity;Z)V"), cancellable = true)
+	@Inject(method = "hurtServer", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/decoration/ItemFrame;dropItem(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/entity/Entity;Z)V"))
 	private void hurtServer(ServerLevel world, DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
 		ItemFrame self = (ItemFrame)(Object)this;
 		this.waxed = false;
@@ -65,6 +68,11 @@ public class ItemFrameEntityMixin {
 			}
 
 			if (this.waxed) {
+				if (player.isCrouching() && !(player.getMainHandItem().is(Items.AIR) && player.getOffhandItem().is(Items.AIR))) {
+					cir.setReturnValue(InteractionResult.FAIL);
+					return;
+				}
+
 				ServerLevel level = (ServerLevel) t.level();
 
 				BlockPos behind = t.blockPosition()
