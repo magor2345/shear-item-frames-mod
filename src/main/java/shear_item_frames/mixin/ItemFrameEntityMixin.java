@@ -63,7 +63,7 @@ public class ItemFrameEntityMixin {
 	}
 
 	@Inject(method = "interact", at = @At("HEAD"), cancellable = true)
-	private void onInteract(Player player, InteractionHand hand, CallbackInfoReturnable<InteractionResult> cir) {
+	private void onInteract(Player player, InteractionHand hand, Vec3 location, CallbackInfoReturnable<InteractionResult> cir) {
 		ItemStack itemStack = player.getItemInHand(hand);
 		ItemFrame t = ((ItemFrame) (Object) this);
 		boolean itemFrameEmpty = t.getItem().isEmpty();
